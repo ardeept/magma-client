@@ -5,6 +5,7 @@
 
 		var self 			= this;
 		var ws 				= require("nodejs-websocket");
+		var _ 				= require("lodash");
 
 		self.connected 		= false;
 
@@ -21,26 +22,36 @@
 		};
 
 		self.connect_delay  = 1000;
+		self.resend_time    = 1000;
+
+		self.message_default = {
+			microservice_code	: config.microservice_code,
+			node_code         	: config.node_code,
+		};
 
 		self.init = function()
 		{
-		
 			self.connect();
 		}
 
 		self.connect = function()
 		{
 			self.connection = ws.connect(config.magma_server,{}, function(){
-				self.connected = true;
+				// once connected, let's register the node
+
+				self.register();
+
 			});
 
 			self.connection.on('connect', function(){
-				self.connected = true;
+				self.log("debug", "connection established");
 			});
 
 			self.connection.on('error', function(code, reason){
 				self.log("debug", "connection not availble", code, reason);				
 			});
+
+			self.connection.on('text', self.read_text);
 
 			self.connection.on('close', function(code, reason){
 
@@ -52,7 +63,36 @@
 
 				setTimeout(self.connect, self.connect_delay*=2);
 			});
+		}
 
+		self.register = function()
+		{
+			self.connection.sendText(JSON.stringify(_.extend(self.message_default, { type: 'register' }) ), function(err){
+				self.log("debug", "registered");
+			});
+		}
+
+		self.read_text = function(msg)
+		{
+			msg = JSON.parse(msg);
+			// let's read the response from the server
+
+			if(msg.type == 'err')
+			{
+				// why
+				self.log("error","Error msg from server", msg);
+			}
+			else if(msg.type == 'registered')
+			{
+				self.log("info","we are now registered");
+				// we can now start publishing
+
+				self.connected = true;
+			}
+			else
+			{
+				self.log("info","Unsupported msg.type sent", msg);
+			}
 		}
 
 		self.publish = function(msg)
@@ -61,7 +101,7 @@
 
 			if(self.connected == true)
 			{
-				self.connection.sendText(JSON.stringify(msg), function(err){
+				self.connection.sendText(JSON.stringify(_.extend(msg, self.message_default, { type: 'stat' }) ), function(err){
 
 					self.log("debug", err);
 
@@ -128,7 +168,7 @@
 			}
 		}
 
-		setInterval(self.resend_failed_publish, 10000);
+		setInterval(self.resend_failed_publish, self.resend_time);
 
 		self.init();
 	};

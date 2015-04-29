@@ -9,6 +9,7 @@
   "author": "Ferdinand Yanto III",
   "license": "ISC",
   "dependencies": {
+    "lodash": "^3.7.0",
     "nodejs-websocket": "^1.2.1"
   }
 }
