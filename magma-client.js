@@ -131,7 +131,7 @@
 			}
 			else if(msg.type == 'registered')
 			{
-				self.log("info","we are now registered");
+				self.log("info","magmaClient - registered", msg);
 				// we can now start publishing
 
 				self.connected = true;
