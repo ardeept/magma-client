@@ -113,7 +113,7 @@
 				type: "register"
 			};
 
-			self._publish(msg);
+			self._publish(msg, true);
 		}
 
 		/*
@@ -154,9 +154,9 @@
 			self._publish(msg);
 		}
 
-		self._publish = function(msg)
+		self._publish = function(msg, force_send)
 		{
-			if(self.connected == true)
+			if(self.connected == true || force_send)
 			{
 				self.connection.sendText(JSON.stringify(_.extend(msg, self.message_default) ), function(err){
 
