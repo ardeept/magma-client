@@ -3,47 +3,86 @@
 
 	var MagmaClient = function(config) {
 
+
 		var self 			= this;
+		// if no config, don't do anything
+
+		/* sample config
+
+			config = {
+				magma_server 		: "ws://localhost:8001",
+				microservice_code	: "IH",
+				node_code         	: "AHIN10.0.0.2"
+			}
+		*/
+
+		if(!config) 
+		{
+			console.log("MAGMA config not found");
+			return false;
+		}
+
 		var ws 				= require("nodejs-websocket");
 		var _ 				= require("lodash");
 
 		self.connected 		= false;
 
-		self.msg_queue 		= [];
-
-		self.debug_mode 	= true;
+		self.debug_mode 	= config.debug_mode || false;
 
 		self.logger 		= console;
 
-
+		// this is internal stats of the magmaclient
 		self.stats 		 	 = {
 			sent 	: 0,
 			error 	: 0
 		};
 
+		// how many seconds before we try to reconnect
 		self.connect_delay  = 1000;
-		self.resend_time    = 1000;
 
+		// this are the parameters that will be automatically added in the transactions
 		self.message_default = {
 			microservice_code	: config.microservice_code,
 			node_code         	: config.node_code,
 		};
 
+		// if this is set to true, failed transactions will be added to the retry queue
+		self.retry_sending  = config.retry_sending || false;
+
+		// data store of the failed transactions
+		self.msg_queue 		= [];
+
+		// how many second before resending the queued transactions
+		self.resend_time    = 1000;
+
 		self.init = function()
 		{
 			self.connect();
+
+			/*
+				let's run the resending function if defer_sending is enabled
+			*/
+			if(self.retry_sending)
+				setInterval(self.resend_failed_publish, self.resend_time);
 		}
 
 		self.connect = function()
 		{
+			/*
+				initiate connection to magmaServer
+			*/
 			self.connection = ws.connect(config.magma_server,{}, function(){
+				
 				// once connected, let's register the node
-
 				self.register();
 
 			});
 
+			/*
+				event listeneres
+			*/
 			self.connection.on('connect', function(){
+				self.connected = true;
 				self.log("debug", "connection established");
 			});
 
@@ -65,13 +104,21 @@
 			});
 		}
 
+		/*
+			initialize magmaClient registration to magmaServer
+		*/
 		self.register = function()
 		{
-			self.connection.sendText(JSON.stringify(_.extend(self.message_default, { type: 'register' }) ), function(err){
-				self.log("debug", "registered");
-			});
+			var msg = {
+				type: "register"
+			};
+
+			self._publish(msg);
 		}
 
+		/*
+			read messages from magmaServer
+		*/
 		self.read_text = function(msg)
 		{
 			msg = JSON.parse(msg);
@@ -95,13 +142,23 @@
 			}
 		}
 
+		/*
+			send messages to magmaServer
+		*/
 		self.publish = function(msg)
 		{
 			self.log("debug", "sending", msg);
 
+			msg.type = 'stats';
+
+			self._publish(msg);
+		}
+
+		self._publish = function(msg)
+		{
 			if(self.connected == true)
 			{
-				self.connection.sendText(JSON.stringify(_.extend(msg, self.message_default, { type: 'stat' }) ), function(err){
+				self.connection.sendText(JSON.stringify(_.extend(msg, self.message_default) ), function(err){
 
 					self.log("debug", err);
 
@@ -127,10 +184,26 @@
 				self.log("warning", "disconnected");
 
 				// defer sending
-				self.msg_queue.push(msg);
+				if(self.retry_sending == true)
+					self.msg_queue.push(msg);
 			}
 		}
 
+		/*
+			send an error to magmaServer
+		*/
+		self.publish_err = function(msg)
+		{
+			self.log("debug", "publish_err", msg);
+
+			msg.type = 'error';
+
+			self._publish(msg);
+		}
+
+		/*
+			resend messages to magmaServer
+		*/
 		self.resend_failed_publish = function()
 		{
 			var c = self.msg_queue;
@@ -139,10 +212,13 @@
 
 			for(var i = 0 ; i < c.length; i++)
 			{
-				self.publish(c[i]);
+				self._publish(c[i]);
 			}
 		}
 
+		/*
+			logging function
+		*/
 		self.log = function(type, message)
 		{
 			var more = Array.prototype.slice.call(arguments, 2);
@@ -168,7 +244,12 @@
 			}
 		}
 
-		setInterval(self.resend_failed_publish, self.resend_time);
+		/*
+			logging function
+		*/
+
+
+			
 
 		self.init();
 	};
