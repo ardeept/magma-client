@@ -38,7 +38,8 @@
 		};
 
 		// how many seconds before we try to reconnect
-		self.connect_delay  = 1000;
+		self.connect_delay  	 = 1000;
+		self.connect_delay_orig  = self.connect_delay;
 
 		// this are the parameters that will be automatically added in the transactions
 		self.message_default = {
@@ -84,6 +85,8 @@
 			self.connection.on('connect', function(){
 				self.connected = true;
 				self.log("debug", "connection established");
+
+				self.connect_delay = self.connect_delay_orig;
 			});
 
 			self.connection.on('error', function(code, reason){
