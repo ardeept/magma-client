@@ -5,6 +5,8 @@
 
 
 		var self 			= this;
+
+		var util 			= require('util');
 		// if no config, don't do anything
 
 		/* sample config
@@ -16,11 +18,26 @@
 			}
 		*/
 
+		/* 
+			if there is no config 
+			let's let the client access "publish" but do nothing
+
+		*/
 		if(!config) 
 		{
 			console.log("MAGMA config not found");
-			return false;
+			return {
+				publish : function()
+				{
+					console.log("magmaClient cannot publish");
+				},
+				publish_err : function()
+				{
+					console.log("magmaClient cannot publish_err");
+				}
+			};
 		}
+
 
 		var ws 				= require("nodejs-websocket");
 		var _ 				= require("lodash");
@@ -152,7 +169,17 @@
 		{
 			self.log("debug", "sending", msg);
 
-			msg.type = 'stats';
+			if(util.isArray(msg) == true)
+			{
+				// msg.type = 'stats';
+
+				msg = {
+					type : 'stats',
+					data : msg
+				}
+			}
+			else
+				msg.type = 'stat';
 
 			self._publish(msg);
 		}

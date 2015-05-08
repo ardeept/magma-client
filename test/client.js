@@ -10,7 +10,9 @@ var config = {
 var mc = new magmaClient(config);
 
 
-// mc.publish({ value: 1, metric_code: 'total_request'});
+mc.publish({ value: 1, metric_code: 'total_request'});
 // mc.publish({ value: 1, metric_code: 'inbound_throughput'});
+
+mc.publish([{ value: 1, metric_code: 'total_request'}, { value: 1, metric_code: 'throughput'}]);
 
 mc.publish_err({ error: "cant connect", send_alert:true });
