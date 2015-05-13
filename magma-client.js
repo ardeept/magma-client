@@ -260,6 +260,9 @@
 
 			}
 
+			message = "magmaclient " + message;
+			
+
 			if(type == 'debug' && self.debug_mode == true)
 			{
 				self.logger.log(type, message);
