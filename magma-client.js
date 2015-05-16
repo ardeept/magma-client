@@ -114,7 +114,7 @@
 
 			self.connection.on('close', function(code, reason){
 
-				self.log("debug", "connection closed", code, reason);
+				self.log("info", "connection closed", code, reason);
 
 				self.connected = false;
 
@@ -151,7 +151,7 @@
 			}
 			else if(msg.type == 'registered')
 			{
-				self.log("info","magmaClient - registered", msg);
+				self.log("info","registered", msg);
 				// we can now start publishing
 
 				self.connected = true;
