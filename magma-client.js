@@ -308,7 +308,7 @@
 		self._publish_aggregated = function()
 		{
 			// now let's send the aggregated data
-			if(self.connected == true || force_send)
+			if(self.connected == true)
 			{
 				// convert self.queue to array only
 				var queue_arr = _.values(self.queue);
