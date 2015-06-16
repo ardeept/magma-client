@@ -215,6 +215,10 @@
 
 				_.each(msg, function(v, k){
 					v.type = 'stat';
+
+					if(!v.value)
+						v.value = 1;
+
 					self.add_message(v);
 				});
 
@@ -222,6 +226,10 @@
 			else
 			{
 				msg.type = 'stat';
+				
+				if(!msg.value)
+					msg.value = 1;
+
 				self.add_message(msg);
 			}
 
@@ -254,8 +262,12 @@
 				if(self.queue[msg[key]])
 				{
 					// key exists
-					// so just append the value
-					self.queue[msg[key]].value += msg.value;
+					
+					// metric type is replace
+					if(msg.replace_value == true)
+						self.queue[msg[key]].value += msg.value;
+					else
+						self.queue[msg[key]].value = msg.value;
 				}
 				else
 				{
