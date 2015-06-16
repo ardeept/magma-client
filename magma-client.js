@@ -20,7 +20,8 @@
 
 		/* 
 			if there is no config 
-			let's let the client access "publish" but do nothing
+				let the client access "publish" method but do nothing
+				let the client access "publish_err" method  but do nothing
 
 		*/
 		if(!config) 
@@ -70,8 +71,29 @@
 		// data store of the failed transactions
 		self.msg_queue 		= [];
 
+		// storage of transactions for publishing
+		self.queue 			= {};
+
 		// how many second before resending the queued transactions
 		self.resend_time    = 1000;
+
+
+
+
+		/* DELAY control*/
+
+		// this is the current delay of re-trying after the initial failure
+		self.delay 			= 1000;
+
+		// current delay
+		self.delay_current 	= 1000;
+
+		// after the succeeding failure, self.delay will be multiplied to this
+		self.delay_factor	= 2;
+
+
+		// store the current disconnection count
+		self.disconnected_count = 0;
 
 		self.init = function()
 		{
@@ -82,6 +104,12 @@
 			*/
 			if(self.retry_sending)
 				setInterval(self.resend_failed_publish, self.resend_time);
+
+			/*
+				let's start publishing
+			*/
+
+
 		}
 
 		self.connect = function()
@@ -94,6 +122,8 @@
 				// once connected, let's register the node
 				self.register();
 
+
+
 			});
 
 			/*
@@ -104,6 +134,9 @@
 				self.log("debug", "connection established");
 
 				self.connect_delay = self.connect_delay_orig;
+
+				// after connection, let's publish
+				self.publishing = setTimeout(self._publish_aggregated, 1000);
 			});
 
 			self.connection.on('error', function(code, reason){
@@ -173,16 +206,167 @@
 			{
 				// msg.type = 'stats';
 
-				msg = {
-					type : 'stats',
-					data : msg
+				// msg = {
+				// 	type : 'stats',
+				// 	data : msg,
+				// }
+
+				// dismantle the array
+
+				_.each(msg, function(v, k){
+					v.type = 'stat';
+					self.add_message(v);
+				});
+
+			}
+			else
+			{
+				msg.type = 'stat';
+				self.add_message(msg);
+			}
+
+			// let's not publish it, let's just add it to the queue
+			// self._publish(msg);
+			
+			
+		}
+
+
+		/*
+			add_message will do the following
+
+				1. check if the message has already an enrty in the main message queue
+				2. If the message exists
+					if(metric)
+						add msg.value to value
+					if(err)
+						add 1 to count
+
+
+
+		*/
+		self.add_message = function(msg)
+		{
+			if(msg.type == 'stat')
+			{
+				var key = 'metric_code';
+
+				if(self.queue[msg[key]])
+				{
+					// key exists
+					// so just append the value
+					self.queue[msg[key]].value += msg.value;
+				}
+				else
+				{
+					// doesn't exists, let's add it
+					// add default values
+					self.queue[msg[key]] = _.extend(msg, self.message_default);
+				}
+			}
+			else if(msg.type == 'error')
+			{
+				var key = 'name';
+
+				if(self.queue[msg[key]])
+				{
+					// key exists
+					// so just append the value
+					self.queue[msg[key]].count += 1;
+				}
+				else
+				{
+					// doesn't exists, let's add it
+					// add default values
+					msg.count = 1;
+					self.queue[msg[key]] = _.extend(msg, self.message_default);
 				}
 			}
 			else
-				msg.type = 'stat';
-
-			self._publish(msg);
+			{
+				// unsupported add_messagse call
+				console.log("Unsupported [add_message]", msg.type);
+			}
 		}
+
+
+		/*
+
+		*/
+		self._publish_aggregated = function()
+		{
+			// now let's send the aggregated data
+			if(self.connected == true || force_send)
+			{
+				// convert self.queue to array only
+				var queue_arr = _.values(self.queue);
+
+
+				if(queue_arr.length)
+				{
+					self.log("info","sending messages:", queue_arr.length);
+
+					self.connection.sendText(JSON.stringify(queue_arr), function(err){
+
+						self.disconnected_count = 0;
+
+						if(err)
+						{
+
+							self.log("debug", err);
+
+							self.stats.error++;
+
+							// run again
+							setTimeout(self._publish_aggregated, self.get_delay(true));
+						}
+						else
+						{
+							self.log("debug", "no error");
+
+
+							// clear the array
+							self.queue = {};
+
+							// run again
+							setTimeout(self._publish_aggregated, self.get_delay());
+						}
+							
+					});
+				}
+				else
+				{
+					// nothing to send
+					self.log("debug","no message to send");
+					setTimeout(self._publish_aggregated, self.get_delay());
+				}
+			}
+			else
+			{
+				self.log("warning", "disconnected count:", self.disconnected_count++);
+			}
+		}
+
+
+		self.get_delay = function(err)
+		{
+			if(err)
+			{
+				// delay must increase 
+				self.delay_current *= self.delay_factor;
+				
+				self.log("info", "delay:", self.delay_current);
+			}	
+			else
+			{
+				// no error
+				// reset it
+				self.delay_current = self.delay;
+			}
+
+			return self.delay_current;
+		}
+
 
 		self._publish = function(msg, force_send)
 		{
@@ -214,8 +398,16 @@
 				self.log("warning", "disconnected");
 
 				// defer sending
-				if(self.retry_sending == true)
+				if(self.retry_sending == true && msg.send_retries < 3)
+				{
+					/* RETRY control */
+					if(msg.send_retries)
+						msg.send_retries++;
+					else
+						msg.send_retries = 1;
+
 					self.msg_queue.push(msg);
+				}
 			}
 		}
 
@@ -228,7 +420,8 @@
 
 			msg.type = 'error';
 
-			self._publish(msg);
+			// self._publish(msg);
+			self.add_message(msg);
 		}
 
 		/*
