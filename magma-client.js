@@ -177,7 +177,7 @@
 			msg = JSON.parse(msg);
 			// let's read the response from the server
 
-			if(msg.type == 'err')
+			if(msg.type == 'error')
 			{
 				// why
 				self.log("error","Error msg from server", msg);
@@ -328,9 +328,23 @@
 
 				if(queue_arr.length)
 				{
-					self.log("info","sending messages:", queue_arr.length, queue_arr);
+					
 
-					self.connection.sendText(JSON.stringify(queue_arr), function(err){
+
+					// msg.type = 'stats';
+
+					var queue_msg = {
+						type : 'stats',
+						data : queue_arr
+					};
+
+					// let's add the client default data
+					queue_msg = _.extend(queue_msg, self.message_default);
+
+					self.log("info","sending messages:", queue_arr.length);
+					self.log("debug","sending messages:", queue_msg);
+
+					self.connection.sendText(JSON.stringify(queue_msg), function(err){
 
 						self.disconnected_count = 0;
 
