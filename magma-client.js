@@ -255,6 +255,8 @@
 		*/
 		self.add_message = function(msg)
 		{
+			self.log('debug',msg);
+
 			if(msg.type == 'stat')
 			{
 				var key = 'metric_code';
@@ -268,12 +270,16 @@
 						self.queue[msg[key]].value += msg.value;
 					else
 						self.queue[msg[key]].value = msg.value;
+
+					self.log('debug','updated',msg[key] , msg.value );
 				}
 				else
 				{
 					// doesn't exists, let's add it
 					// add default values
 					self.queue[msg[key]] = _.extend(msg, self.message_default);
+
+					self.log('debug','added',msg[key] , msg.value );
 				}
 			}
 			else if(msg.type == 'error')
@@ -285,6 +291,8 @@
 					// key exists
 					// so just append the value
 					self.queue[msg[key]].count += 1;
+
+					self.log('debug','updated error',msg[key] , msg.value );
 				}
 				else
 				{
@@ -292,7 +300,11 @@
 					// add default values
 					msg.count = 1;
 					self.queue[msg[key]] = _.extend(msg, self.message_default);
+
+					self.log('debug','added error',msg[key] , msg.value );
 				}
+
+
 			}
 			else
 			{
@@ -316,7 +328,7 @@
 
 				if(queue_arr.length)
 				{
-					self.log("info","sending messages:", queue_arr.length);
+					self.log("info","sending messages:", queue_arr.length, queue_arr);
 
 					self.connection.sendText(JSON.stringify(queue_arr), function(err){
 
